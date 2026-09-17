@@ -1,24 +1,35 @@
-@app.route('/api/download')
-def download_video():
+from flask import Flask, request, Response, jsonify
+from flask_cors import CORS
+import yt_dlp
+import requests
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route('/api/info')
+def info():
     url = request.args.get('url')
-    quality = request.args.get('quality', '720') # 1080, 720 etc
-    
-    ydl_opts = {
-        'quiet': True,
-        'format': f'bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'noplaylist': True,
-        'nocheckcertificate': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
-    }
+    ydl_opts = {'quiet': True, 'nocheckcertificate': True, 'extractor_args': {'youtube': {'player_client': ['android']}}}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        data = ydl.extract_info(url, download=False)
+        return jsonify(data)
+
+@app.route('/api/download')
+def download():
+    url = request.args.get('url')
+    quality = request.args.get('quality', 'best')
+    # Step 1: yt-dlp se asal googlevideo link nikalo
+    ydl_opts = {'quiet': True, 'format': f'best[height<={quality}]/best', 'nocheckcertificate': True, 'extractor_args': {'youtube': {'player_client': ['android']}}}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
-        # googlevideo.com wala asal link nikalo
-        if 'url' in info:
-            direct_url = info['url']
-        else:
-            # sab se achi mp4 format dhoondo
-            formats = [f for f in info['formats'] if f.get('ext') == 'mp4' and f.get('vcodec') != 'none']
-            direct_url = formats[-1]['url'] if formats else info['formats'][-1]['url']
-        
-        # Redirect mat karo, link JSON me bhejo taake frontend download kara sake
-        return jsonify({"download_url": direct_url, "title": info['title']})
+        direct_url = info.get('url') or info['formats'][-1]['url']
+        title = info.get('title', 'video')
+
+    # Step 2: Us link ko proxy karke user ko bhejo - taake .txt na aaye
+    r = requests.get(direct_url, stream=True)
+    return Response(r.iter_content(chunk_size=1024*1024), 
+                    content_type='video/mp4',
+                    headers={'Content-Disposition': f'attachment; filename="{title}.mp4"'})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
