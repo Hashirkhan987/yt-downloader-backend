@@ -1,82 +1,51 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-import yt_dlp
-import requests
+import yt_dlp, requests
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/')
-def home():
-    return "Backend is LIVE - Fixed"
+def home(): return "Backend LIVE Final Fix"
 
-@app.route('/api/info', methods=['GET', 'POST'])
+@app.route('/api/info', methods=['POST'])
 def get_info():
     try:
-        if request.method == 'POST':
-            data = request.get_json()
-            url = data.get('url') if data else None
-        else:
-            url = request.args.get('url')
-
-        if not url:
-            return jsonify({'error': 'URL missing'}), 400
-
-        # YOUTUBE BLOCK BYPASS
+        url = request.get_json().get('url')
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'skip_download': True,
-            'noplaylist': True,
+            'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],
-                    'skip': ['hls', 'dash']
+                    'player_client': ['android', 'ios', 'web'],
+                    'player_skip': ['webpage', 'configs'],
                 }
-            }
+            },
         }
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = []
-            seen = set()
             for f in info.get('formats', []):
-                fid = f.get('format_id')
-                if fid in seen: continue
-                if f.get('vcodec')!= 'none' or f.get('acodec')!= 'none':
-                    seen.add(fid)
-                    formats.append({
-                        'itag': fid,
-                        'quality': f.get('format_note') or (f"{f.get('height')}p" if f.get('height') else f.get('ext')),
-                        'ext': f.get('ext'),
-                    })
-
-            return jsonify({
-                'title': info.get('title'),
-                'thumbnail': info.get('thumbnail'),
-                'duration': info.get('duration'),
-                'formats': formats[:15]
-            })
+                if f.get('url'):
+                    formats.append({'itag': f['format_id'], 'quality': f.get('height'), 'ext': f['ext']})
+            return jsonify({'title': info.get('title'), 'thumbnail': info.get('thumbnail'), 'formats': formats[:10]})
     except Exception as e:
-        return jsonify({'error': f'{str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/download')
-def download_video():
+def download():
     try:
         url = request.args.get('url')
         itag = request.args.get('itag')
-        ydl_opts = {
-            'format': itag,
-            'quiet': True,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
-        }
+        ydl_opts = {'format': itag, 'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}}}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             for f in info['formats']:
-                if f['format_id'] == itag and 'url' in f:
-                    r = requests.get(f['url'], stream=True, headers={'User-Agent': 'Mozilla/5.0'})
-                    return Response(r.iter_content(1024*1024), headers={'Content-Disposition': f'attachment; filename="video.{f.get("ext","mp4")}"'})
-        return jsonify({'error': 'Format not found'}), 404
+                if f['format_id'] == itag:
+                    r = requests.get(f['url'], stream=True)
+                    return Response(r.iter_content(1024*1024), headers={'Content-Disposition': f'attachment; filename="video.{f["ext"]}"'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
