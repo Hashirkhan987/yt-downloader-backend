@@ -1,10 +1,9 @@
 import os
 import yt_dlp
-from flask import Flask, request, jsonify, redirect, Response
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 
 app = Flask(__name__)
-# Enable CORS for all routes so the frontend can communicate smoothly
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/')
@@ -27,6 +26,8 @@ def get_info():
         'no_warnings': True,
         'skip_download': True,
         'format': 'best',
+        'nocheckcertificate': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
     }
 
     try:
@@ -35,22 +36,19 @@ def get_info():
             if not info:
                 return jsonify({"error": "Link not found"}), 400
 
-            # Find direct video link from top-level or formats
             direct_url = info.get('url')
             formats = []
 
             for f in info.get('formats', []):
                 f_url = f.get('url')
-                # Filter out formats without valid stream URLs
                 if not f_url or f_url == 'None':
                     continue
 
                 vcodec = f.get('vcodec', 'none')
                 acodec = f.get('acodec', 'none')
-                has_video = vcodec and vcodec != 'none'
-                has_audio = acodec and acodec != 'none'
+                has_video = vcodec and vcodec!= 'none'
+                has_audio = acodec and acodec!= 'none'
 
-                # Only include formats that have progressive video+audio or distinct audio
                 if (has_video and has_audio) or (not has_video and has_audio):
                     formats.append({
                         "itag": str(f.get('format_id', '')),
@@ -60,11 +58,9 @@ def get_info():
                         "url": f_url
                     })
 
-            # If direct_url is missing, pick the first valid format URL
             if (not direct_url or direct_url == 'None') and formats:
                 direct_url = formats[0]['url']
 
-            # If still None or missing, return 400 error instead of 'None'
             if not direct_url or direct_url == 'None':
                 return jsonify({"error": "Link not found"}), 400
 
@@ -90,12 +86,14 @@ def download():
     if not url:
         return jsonify({"error": "YouTube URL is required"}), 400
 
-    format_spec = itag if (itag and itag != 'None') else 'best'
+    format_spec = itag if (itag and itag!= 'None') else 'best'
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
-        'format': format_spec
+        'format': format_spec,
+        'nocheckcertificate': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
     }
 
     try:
@@ -104,16 +102,14 @@ def download():
             stream_url = info.get('url')
 
             if not stream_url or stream_url == 'None':
-                # Fallback to the first available format stream
                 for f in info.get('formats', []):
-                    if f.get('url') and f.get('url') != 'None':
+                    if f.get('url') and f.get('url')!= 'None':
                         stream_url = f.get('url')
                         break
 
             if not stream_url or stream_url == 'None':
                 return jsonify({"error": "Link not found"}), 400
 
-            # Redirect directly to the YouTube direct media stream
             return redirect(stream_url, code=302)
     except Exception as e:
         return jsonify({"error": "Link not found"}), 400
