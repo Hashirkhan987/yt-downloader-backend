@@ -27,7 +27,15 @@ def get_info():
         'skip_download': True,
         'format': 'best',
         'nocheckcertificate': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'ios'],
+                'player_skip': ['webpage', 'configs']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; UTV 5.10.101) gzip'
+        }
     }
 
     try:
@@ -93,7 +101,15 @@ def download():
         'skip_download': True,
         'format': format_spec,
         'nocheckcertificate': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'ios'],
+                'player_skip': ['webpage', 'configs']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; UTV 5.10.101) gzip'
+        }
     }
 
     try:
