@@ -195,8 +195,24 @@ def download_video():
     output_template = os.path.join(TEMP_DIR, f"{job_id}.%(ext)s")
 
     if format_id:
-        # Only use an explicit format supplied by yt-dlp's /api/info response.
-        format_selector = f"{format_id}+bestaudio[ext=m4a]/best[format_id={format_id}]/best"
+        # Inspect the selected format first. Progressive formats already contain audio
+        # and should be downloaded as-is; video-only formats need an audio stream merged
+        # by FFmpeg.
+        try:
+            with yt_dlp.YoutubeDL(base_ydl_opts()) as probe_ydl:
+                probe = probe_ydl.extract_info(url, download=False)
+            selected = next(
+                (f for f in (probe.get("formats") or [])
+                 if str(f.get("format_id")) == str(format_id)),
+                None,
+            )
+        except Exception:
+            selected = None
+
+        if selected and selected.get("acodec") not in (None, "none"):
+            format_selector = str(format_id)
+        else:
+            format_selector = f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/best[format_id={format_id}]/best"
     else:
         # Prefer a single-file MP4. If unavailable, use best available media.
         format_selector = "best[ext=mp4]/best"
